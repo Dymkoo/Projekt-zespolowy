@@ -1,24 +1,66 @@
 from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, EmailStr, Field
+from datetime import date
+from typing import List, Optional
+from enum import Enum
 
 app = FastAPI()
-full_names = []
+
+class Status(str, Enum):
+    SUBMITTED = "Submitted"
+    UNDER_REVIEW = "Under Review"
+    ASSIGNED = "Assigned"
+    APPROVED = "Approved - Discovery Phase"
+    ONGOING = "Ongoing - Implementation Phase"
+    REJECTED = "Rejected / Needs Clarification"
+
+
+class LeadData(BaseModel):
+    #Core Identification
+    title: str = Field(..., description="Initiative title")
+    organization: str = Field(..., description="Organization name")
+
+    #Business Context
+    background: str = Field(..., description="Initiative background")
+    challenge: str = Field(..., description="Business challenge")
+
+    #Scope & Requirements
+    scope: str = Field(..., description="High-level scope")
+    requirements: str = Field(..., description="Basic requirements (functional / non-functional)")
+    risks: str = Field(..., description="Assumptions, constraints, risks")
+
+    #Planning Inputs
+    time_plan: date = Field(..., description="High-level time-plan / target dates")
+    active_wbs: Optional[str] = Field(description="Active WBS for Discovery Phase")
+
+    #Governance & Contacts
+    spoc_email: EmailStr = Field(..., description="SPOC")
+    business_owner_email: EmailStr = Field(..., description="Business Owner")
+    stakeholders: List[str] = Field(default=[], description="Involved Stakeholders / Key Users / SMEs")
+
+    status: Status = Status.SUBMITTED
+
+leads_data = []
 
 @app.get("/")
 def root():
     return {"Hello": "World"}
 
-@app.post("/personal-data")
-def create_name(full_name: str):
-    full_names.append(full_name)
-    return full_names
+@app.post("/leads")
+async def create_lead(lead: LeadData):
+    leads_data.append(lead)
+    return {
+        "message": "Lead submitted successfully",
+        "lead_data": lead
+    }
 
-@app.get("/personal-data")
-def list_names(limit: int = 10):
-    return full_names[0:limit]
+@app.get("/leads")
+def list_leads(limit: int = 10):
+    return leads_data[:limit]
 
-@app.get("/personal-data/{personal_id}")
-def get_name(name_id: int) -> str:
-    if name_id < len(full_names):
-        return full_names[name_id]
+@app.get("/leads/{lead_id}")
+def get_lead(lead_id: int) -> LeadData:
+    if lead_id < len(leads_data):
+        return leads_data[lead_id]
     else:
-        raise HTTPException(status_code=404, detail="Person not found")
+        raise HTTPException(status_code=404, detail="Lead not found")
