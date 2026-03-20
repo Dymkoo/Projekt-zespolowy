@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, EmailStr, Field
 from datetime import date
-from typing import List, Optional
 from enum import Enum
 
 app = FastAPI()
@@ -31,34 +31,34 @@ class LeadData(BaseModel):
 
     #Planning Inputs
     time_plan: date = Field(..., description="High-level time-plan / target dates")
-    active_wbs: Optional[str] = Field(description="Active WBS for Discovery Phase")
+    active_wbs: str = Field(..., description="Active WBS for Discovery Phase")
 
     #Governance & Contacts
     spoc_email: EmailStr = Field(..., description="SPOC")
     business_owner_email: EmailStr = Field(..., description="Business Owner")
-    stakeholders: List[str] = Field(default=[], description="Involved Stakeholders / Key Users / SMEs")
+    stakeholders: list[str] = Field(default=[], description="Involved Stakeholders / Key Users / SMEs")
 
     status: Status = Status.SUBMITTED
 
 leads_data = []
 
 @app.get("/")
-def root():
-    return {"Hello": "World"}
+def redirect_to_docs():
+    return RedirectResponse(url="/docs")
 
 @app.post("/leads")
 async def create_lead(lead: LeadData):
     leads_data.append(lead)
     return {
-        "message": "Lead submitted successfully",
+        "message": "Lead submitted successfully!",
         "lead_data": lead
     }
 
-@app.get("/leads")
+@app.get("/leads", response_model=list[LeadData])
 def list_leads(limit: int = 10):
     return leads_data[:limit]
 
-@app.get("/leads/{lead_id}")
+@app.get("/leads/{lead_id}", response_model=LeadData)
 def get_lead(lead_id: int) -> LeadData:
     if lead_id < len(leads_data):
         return leads_data[lead_id]
