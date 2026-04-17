@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/svg+xml" href="favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volvo IDEA - Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-white">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">Volvo IDEA</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="index.html">New Lead</a></li>
+                    <li class="nav-item"><a class="nav-link" href="track.html">Track Status</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="dashboard.html">Verifier Dashboard</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5">
+        
+        <div id="loginSection" class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow-sm">
+                    <div class="card-header bg-dark text-white">Verifier Login</div>
+                    <div class="card-body">
+                        <form id="loginForm" novalidate>
+                            <div class="mb-3">
+                                <label class="form-label">Username</label>
+                                <input type="text" class="form-control" id="username" required>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Password</label>
+                                <input type="password" class="form-control" id="password" required>
+                            </div>
+                            <button type="submit" class="btn btn-dark w-100">Login</button>
+                        </form>
+                        <div id="loginError" class="text-danger mt-2 d-none">Invalid credentials.</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div id="dashboardSection" class="d-none container mt-5 mb-5" style="max-width: 1100px;">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h3 class="mb-0 text-dark fw-bold" style="font-family: 'Volvo Novum', 'Volvo Centum', Arial, sans-serif;">Leads Dashboard</h3>
+                <button id="logoutBtn" class="btn btn-outline-danger">Logout</button>
+            </div>
+            
+            <div class="dashboard-tile shadow-sm">
+                <div class="table-responsive">
+                    <table class="table table-dashboard table-hover">
+                        <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Title</th>
+                                <th>Organization</th>
+                                <th>Date</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="leadsTableBody">
+                            </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div> 
+
+    <div class="modal fade" id="previewModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-white border-bottom px-4">
+                    <h5 class="modal-title fw-bold" style="font-family: 'Volvo Novum', 'Volvo Centum', Arial, sans-serif; color: var(--volvo-dark);">
+                        Lead Details ID: <span id="previewId" class="badge bg-secondary"></span>
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body bg-white px-4">
+                    <form>
+                        <div class="form-tile px-4 py-3 mb-3">
+                            <h6 class="fw-bold mb-3">Core Identification</h6>
+                            <div class="row">
+                                <div class="col-md-6 mb-2 mb-md-0">
+                                    <label class="form-label text-muted small mb-1">Initiative Title</label>
+                                    <textarea class="form-control bg-white fw-bold auto-resize" id="previewTitle" readonly></textarea>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">Organization</label>
+                                    <textarea class="form-control bg-white fw-bold auto-resize" id="previewOrg" readonly></textarea>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="form-tile px-4 py-3 mb-3">
+                            <h6 class="fw-bold mb-3">Business Context</h6>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small mb-1">Initiative Background</label>
+                                <textarea class="form-control bg-white auto-resize" id="previewBackground" readonly></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label text-muted small mb-1">Business Challenge</label>
+                                <textarea class="form-control bg-white auto-resize" id="previewChallenge" readonly></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-tile px-4 py-3 mb-3">
+                            <h6 class="fw-bold mb-3">Scope & Requirements</h6>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small mb-1">Scope</label>
+                                <textarea class="form-control bg-white auto-resize" id="previewScope" readonly></textarea>
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label text-muted small mb-1">Requirements</label>
+                                <textarea class="form-control bg-white auto-resize" id="previewRequirements" readonly></textarea>
+                            </div>
+                            <div>
+                                <label class="form-label text-muted small mb-1">Risks & Constraints</label>
+                                <textarea class="form-control bg-white auto-resize" id="previewRisks" readonly></textarea>
+                            </div>
+                        </div>
+
+                        <div class="form-tile px-4 py-3 mb-2">
+                            <h6 class="fw-bold mb-3">Planning Inputs & Governance</h6>
+                            <div class="row mb-3">
+                                <div class="col-md-6 mb-2 mb-md-0">
+                                    <label class="form-label text-muted small mb-1">Time-plan</label>
+                                    <input type="text" class="form-control bg-white" id="previewTime" readonly>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label text-muted small mb-1">Active WBS</label>
+                                    <input type="text" class="form-control bg-white" id="previewWbs" readonly>
+                                </div>
+                            </div>
+                            <div class="row">
+                                <div class="col-md-4 mb-2 mb-md-0">
+                                    <label class="form-label text-muted small mb-1">SPOC Email</label>
+                                    <input type="text" class="form-control bg-white" id="previewSpoc" readonly>
+                                </div>
+                                <div class="col-md-4 mb-2 mb-md-0">
+                                    <label class="form-label text-muted small mb-1">Business Owner</label>
+                                    <input type="text" class="form-control bg-white" id="previewOwner" readonly>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label text-muted small mb-1">Stakeholders</label>
+                                    <textarea class="form-control bg-white auto-resize" id="previewStakeholders" readonly></textarea>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer bg-white border-top-0 pt-0 px-4 pb-4">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close Preview</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="modal fade" id="statusModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Update Status</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="modalLeadId">
+                    <div class="mb-3">
+                        <label class="form-label">New Status</label>
+                        <select class="form-select" id="modalStatus">
+                            <option value="Submitted">Submitted</option>
+                            <option value="Under Review">Under Review</option>
+                            <option value="Assigned">Assigned</option>
+                            <option value="Approved - Discovery Phase">Approved - Discovery Phase</option>
+                            <option value="Ongoing - Implementation Phase">Ongoing - Implementation Phase</option>
+                            <option value="Rejected / Needs Clarification">Rejected / Needs Clarification</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Verifier Comments</label>
+                        <textarea class="form-control" id="modalComments" rows="3"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveStatusBtn">Save</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

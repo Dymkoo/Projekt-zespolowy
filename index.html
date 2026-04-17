@@ -1,0 +1,114 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/svg+xml" href="favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volvo IDEA - Submit Lead</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-white">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">Volvo IDEA</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link active" href="index.html">New Lead</a></li>
+                    <li class="nav-item"><a class="nav-link" href="track.html">Track Status</a></li>
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Verifier Dashboard</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5 mb-5" style="max-width: 800px;">
+        
+        <h3 class="mb-4 text-center">Submit New Initiative (IDEA)</h3>
+        
+        <form id="leadForm" novalidate>
+            
+            <div class="form-tile">
+                <h6>Core Identification</h6>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small mb-1">Initiative Title *</label>
+                        <input type="text" class="form-control" id="title" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small mb-1">Organization *</label>
+                        <input type="text" class="form-control" id="organization" required>
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-tile">
+                <h6>Business Context</h6>
+                <div class="mb-3">
+                    <label class="form-label text-muted small mb-1">Initiative Background *</label>
+                    <textarea class="form-control" id="background" rows="2" required></textarea>
+                </div>
+                <div>
+                    <label class="form-label text-muted small mb-1">Business Challenge *</label>
+                    <textarea class="form-control" id="challenge" rows="2" required></textarea>
+                </div>
+            </div>
+
+            <div class="form-tile">
+                <h6>Scope & Requirements</h6>
+                <div class="mb-3">
+                    <label class="form-label text-muted small mb-1">High-level Scope *</label>
+                    <textarea class="form-control" id="scope" rows="2" required></textarea>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label text-muted small mb-1">Basic Requirements (functional / non-functional) *</label>
+                    <textarea class="form-control" id="requirements" rows="2" required></textarea>
+                </div>
+                <div>
+                    <label class="form-label text-muted small mb-1">Assumptions, Constraints, Risks</label>
+                    <textarea class="form-control" id="risks" rows="2"></textarea>
+                </div>
+            </div>
+
+            <div class="form-tile">
+                <h6>Planning Inputs</h6>
+                <div class="row">
+                    <div class="col-md-6 mb-3 mb-md-0">
+                        <label class="form-label text-muted small mb-1">High-level Time-plan / Target Date *</label>
+                        <input type="date" class="form-control" id="time_plan" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small mb-1">Active WBS for Discovery Phase</label>
+                        <input type="text" class="form-control" id="active_wbs">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-tile">
+                <h6>Governance & Contacts</h6>
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small mb-1">SPOC Email *</label>
+                        <input type="email" class="form-control" id="spoc_email" required>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label text-muted small mb-1">Business Owner Email *</label>
+                        <input type="email" class="form-control" id="business_owner_email" required>
+                    </div>
+                </div>
+                <div>
+                    <label class="form-label text-muted small mb-1">Involved Stakeholders (comma separated)</label>
+                    <input type="text" class="form-control" id="stakeholders" placeholder="email1@volvo.com, email2@volvo.com">
+                </div>
+            </div>
+
+            <button type="submit" class="btn-submit-tile w-100 mt-2">Submit Request</button>
+        </form>
+        
+        <div id="submitResult" class="alert mt-4 d-none" role="alert"></div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <link rel="icon" type="image/svg+xml" href="favicon.png">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Volvo IDEA - Track Lead</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="bg-light">
+
+    <nav class="navbar navbar-expand-lg navbar-light bg-white">
+        <div class="container">
+            <a class="navbar-brand" href="index.html">Volvo IDEA</a>
+            <div class="collapse navbar-collapse">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item"><a class="nav-link" href="index.html">New Lead</a></li>
+                    <li class="nav-item"><a class="nav-link active" href="track.html">Track Status</a></li>
+                    <li class="nav-item"><a class="nav-link" href="dashboard.html">Verifier Dashboard</a></li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-5 mb-5" style="max-width: 800px;">
+        <h3 class="mb-4 text-center">Track Your Initiative</h3>
+        
+        <div class="form-tile shadow-sm">
+            <form id="trackForm" class="d-flex mb-3" novalidate>
+                <input type="text" id="trackingId" class="form-control me-3" placeholder="Enter Tracking ID" required>
+                <button type="submit" class="btn btn-primary px-4" style="background-color: var(--volvo-light-blue); border-color: var(--volvo-light-blue);">Check Status</button>
+            </form>
+            
+            <div id="trackResult" class="d-none mt-4 pt-4 border-top">
+                <h5 id="trackTitle" class="mb-4 fw-bold" style="color: var(--volvo-dark);"></h5>
+                
+                <div class="row mb-3">
+                    <div class="col-sm-4 text-muted small">Status:</div>
+                    <div class="col-sm-8"><span id="trackStatus" class="badge bg-secondary" style="font-size: 0.9rem;"></span></div>
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-sm-4 text-muted small">Assigned Verifier:</div>
+                    <div class="col-sm-8 fw-bold" id="trackVerifier"></div>
+                </div>
+                
+                <div class="row">
+                    <div class="col-sm-4 text-muted small">Verifier Comments:</div>
+                    <div class="col-sm-12 mt-2">
+                        <div id="trackComments" class="p-3 bg-white border rounded text-dark"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div id="trackError" class="alert alert-danger d-none mt-4" role="alert"></div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

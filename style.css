@@ -1,0 +1,193 @@
+/* --- CSS Variables --- */
+:root {
+    --volvo-blue: #003057;
+    --volvo-light-blue: #517891;
+    --volvo-dark: #212721;
+    --volvo-grey: #65665c;
+    --volvo-bg: #f4f7f6;
+}
+
+/* --- Base Styles --- */
+body {
+    font-family: 'Volvo Novum', 'Volvo Centum', Arial, sans-serif;
+    background-color: #ffffff;
+    color: var(--volvo-dark);
+    overflow-y: scroll;
+}
+
+body::-webkit-scrollbar {
+    display: none;
+}
+
+/* --- Typography & Branding --- */
+h3.text-center {
+    font-family: 'Volvo Novum', 'Volvo Centum', Arial, sans-serif;
+    font-weight: bold;
+    color: #1c1c1c;
+}
+
+/* --- Navigation --- */
+.navbar {
+    margin-bottom: 2rem;
+    background-color: #ffffff !important;
+    padding: 15px 0;
+}
+
+.navbar-brand {
+    font-family: 'Volvo Broad', 'Clarendon Text', Georgia, serif;
+    font-weight: bold;
+    letter-spacing: 1px;
+    color: var(--volvo-dark) !important;
+    font-size: 1.5rem;
+}
+
+.navbar-nav .nav-link {
+    font-family: 'Volvo Novum', 'Volvo Centum', Arial, sans-serif;
+    color: #1c1c1c !important;
+    font-size: 1.1rem;
+    padding: 10px 20px !important;
+    margin: 0 5px;
+    border-radius: 8px;
+    transition: background-color 0.2s ease-in-out, color 0.2s ease-in-out;
+}
+
+.navbar-nav .nav-link:hover {
+    color: var(--volvo-light-blue) !important;
+    background-color: #f4f5f7 !important;
+}
+
+.navbar-nav .nav-link.active {
+    background-color: #f4f5f7 !important;
+}
+
+/* --- Legacy / Shared Components --- */
+.card {
+    border: none;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+}
+
+.card-header.bg-primary {
+    background-color: var(--volvo-blue) !important;
+    border-radius: 8px 8px 0 0 !important;
+}
+
+.border-bottom {
+    border-bottom: 2px solid var(--volvo-grey) !important;
+}
+
+/* --- Buttons --- */
+.btn-primary {
+    background-color: var(--volvo-light-blue);
+    border-color: var(--volvo-light-blue);
+    color: white;
+}
+
+.btn-primary:hover {
+    background-color: var(--volvo-blue);
+    border-color: var(--volvo-blue);
+}
+
+.btn-submit-tile {
+    background-color: var(--volvo-light-blue);
+    color: white;
+    border: none;
+    padding: 15px;
+    border-radius: 8px;
+    font-weight: bold;
+    font-size: 1.1rem;
+    transition: background-color 0.3s ease;
+}
+
+.btn-submit-tile:hover {
+    background-color: var(--volvo-blue);
+    color: white;
+}
+
+.btn-preview {
+    background-color: var(--volvo-light-blue);
+    border-color: var(--volvo-light-blue);
+    color: white;
+}
+
+.btn-preview:hover {
+    background-color: var(--volvo-blue);
+    color: white;
+}
+
+.btn-status-outline {
+    color: var(--volvo-grey);
+    border: 1px solid var(--volvo-grey);
+    background-color: transparent;
+}
+
+.btn-status-outline:hover {
+    background-color: var(--volvo-grey);
+    color: white;
+}
+
+/* --- Forms & Tiles (index.html) --- */
+.form-tile {
+    background-color: #f4f5f7;
+    border-radius: 12px;
+    padding: 25px;
+    margin-bottom: 25px;
+    border: 1px solid #e9ecef;
+}
+
+.form-tile h6 {
+    font-weight: bold;
+    color: var(--volvo-dark);
+    margin-bottom: 20px;
+    font-size: 1.1rem;
+}
+
+.form-tile .form-control {
+    background-color: #ffffff;
+    border: 1px solid #ced4da;
+    border-radius: 6px;
+    padding: 12px 15px;
+    box-shadow: none;
+}
+
+.form-tile .form-control:focus {
+    border-color: var(--volvo-light-blue);
+    box-shadow: 0 0 0 0.25rem rgba(81, 120, 145, 0.25);
+}
+
+/* --- Dashboard Table --- */
+.dashboard-tile {
+    background-color: #f4f5f7;
+    border-radius: 12px;
+    padding: 25px;
+    border: 1px solid #e9ecef;
+}
+
+.table-dashboard {
+    background-color: #ffffff;
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid #e9ecef;
+    margin-bottom: 0;
+}
+
+.table-dashboard thead th {
+    background-color: var(--volvo-dark);
+    color: white;
+    border-bottom: none;
+    padding: 15px;
+    font-weight: normal;
+}
+
+.table-dashboard tbody td {
+    padding: 15px;
+    vertical-align: middle;
+    border-bottom: 1px solid #e9ecef;
+}
+
+/* --- Utilities --- */
+textarea.auto-resize {
+    resize: none !important;
+    overflow: hidden !important;
+    min-height: 45px;
+}
