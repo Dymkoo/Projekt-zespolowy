@@ -6,6 +6,49 @@ from pydantic import BaseModel, EmailStr, Field
 from datetime import date
 from enum import Enum
 import uuid
+import json
+from sqlalchemy import create_engine, Column, Integer, String, Text, Date
+from sqlalchemy.orm import declarative_base, sessionmaker, Session
+
+SQLALCHEMY_DATABASE_URL = "postgresql://admin:cisco123@localhost:5433/idea_db"
+
+engine = create_engine(SQLALCHEMY_DATABASE_URL)
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+Base = declarative_base()
+
+
+class DBLead(Base):
+    __tablename__ = "leads"
+
+    id = Column(Integer, primary_key=True, index=True)
+    tracking_id = Column(String, unique=True, index=True)
+    status = Column(String, default="Submitted")
+    assigned_verifier = Column(String, nullable=True)
+    verifier_comments = Column(Text, nullable=True)
+    title = Column(String)
+    organization = Column(String)
+    background = Column(Text)
+    challenge = Column(Text)
+    scope = Column(Text)
+    requirements = Column(Text)
+    risks = Column(Text, nullable=True)
+    time_plan = Column(Date)
+    active_wbs = Column(String, nullable=True)
+    spoc_email = Column(String)
+    business_owner_email = Column(String)
+    stakeholders = Column(String, default="[]")
+
+
+Base.metadata.create_all(bind=engine)
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 
 app = FastAPI(
     title="IDEA API",
@@ -15,18 +58,18 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], 
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# --- CONFIG & AUTH ---
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
 
 VERIFIERS = {
     "admin": "cisco123"
 }
+
 
 def get_current_verifier(token: str = Depends(oauth2_scheme)):
     if token not in VERIFIERS:
@@ -37,7 +80,7 @@ def get_current_verifier(token: str = Depends(oauth2_scheme)):
         )
     return token
 
-# --- DATA MODELS ---
+
 class Status(str, Enum):
     SUBMITTED = "Submitted"
     UNDER_REVIEW = "Under Review"
@@ -46,28 +89,21 @@ class Status(str, Enum):
     ONGOING = "Ongoing - Implementation Phase"
     REJECTED = "Rejected / Needs Clarification"
 
+
 class LeadCreate(BaseModel):
-    #Core Identification
     title: str = Field(..., description="Initiative title")
     organization: str = Field(..., description="Organization name")
-
-    #Business Context
     background: str = Field(..., description="Initiative background")
     challenge: str = Field(..., description="Business challenge")
-
-    #Scope & Requirements
     scope: str = Field(..., description="High-level scope")
-    requirements: str = Field(..., description="Basic requirements (functional / non-functional)")
+    requirements: str = Field(..., description="Basic requirements")
     risks: str | None = Field(default=None, description="Assumptions, constraints, risks")
-
-    #Planning Inputs
     time_plan: date = Field(..., description="High-level time-plan / target dates")
     active_wbs: str | None = Field(default=None, description="Active WBS for Discovery Phase")
-
-    #Governance & Contacts
     spoc_email: EmailStr = Field(..., description="SPOC")
     business_owner_email: EmailStr = Field(..., description="Business Owner")
-    stakeholders: list[str] = Field(default=[], description="Involved Stakeholders / Key Users / SMEs")
+    stakeholders: list[str] = Field(default=[], description="Involved Stakeholders")
+
 
 class LeadData(LeadCreate):
     id: int | None = None
@@ -76,81 +112,102 @@ class LeadData(LeadCreate):
     assigned_verifier: str | None = None
     verifier_comments: str | None = None
 
+
 class LeadUpdate(BaseModel):
     status: Status
-    verifier_comments: str | None = Field(default=None, description="")
+    verifier_comments: str | None = Field(default=None)
 
-leads_data = []
-current_id = 1
 
-# --- PUBLIC ENDPOINTS ---
 @app.get("/", summary="Redirect to Docs", tags=["Redirects"])
 def redirect_to_docs():
     return RedirectResponse(url="/docs")
+
 
 @app.post("/auth", summary="Login for Verifiers", tags=["Authentication"])
 def login(form_data: OAuth2PasswordRequestForm = Depends()):
     if form_data.username in VERIFIERS and VERIFIERS[form_data.username] == form_data.password:
         return {"access_token": form_data.username, "token_type": "bearer"}
-
     raise HTTPException(status_code=400, detail="Incorrect username or password")
 
+
 @app.post("/leads", summary="Submit Lead Form", tags=["Leads"])
-async def create_lead(lead: LeadCreate):
-    global current_id
-
-    new_lead = LeadData(
-        **lead.model_dump(),
-        id=current_id,
-        tracking_id=str(uuid.uuid4())
+async def create_lead(lead: LeadCreate, db: Session = Depends(get_db)):
+    new_tracking_id = str(uuid.uuid4())
+    db_lead = DBLead(
+        tracking_id=new_tracking_id,
+        title=lead.title,
+        organization=lead.organization,
+        background=lead.background,
+        challenge=lead.challenge,
+        scope=lead.scope,
+        requirements=lead.requirements,
+        risks=lead.risks,
+        time_plan=lead.time_plan,
+        active_wbs=lead.active_wbs,
+        spoc_email=lead.spoc_email,
+        business_owner_email=lead.business_owner_email,
+        stakeholders=json.dumps(lead.stakeholders)
     )
-
-    leads_data.append(new_lead)
-    current_id += 1
+    db.add(db_lead)
+    db.commit()
+    db.refresh(db_lead)
 
     return {
         "message": "Lead submitted successfully",
-        "tracking_id": new_lead.tracking_id,
-        "check_status_url": f"/track/{new_lead.tracking_id}"
+        "tracking_id": db_lead.tracking_id,
+        "check_status_url": f"/track/{db_lead.tracking_id}"
     }
 
-@app.get("/track/{tracking_id}", summary="Check Your Lead Status", tags=["Leads"])
-def track_lead(tracking_id: str):
-    for lead in leads_data:
-        if lead.tracking_id == tracking_id:
-            return {
-                "title": lead.title,
-                "status": lead.status,
-                "assigned_verifier": lead.assigned_verifier,
-                "verifier_comments": lead.verifier_comments
-            }
 
+@app.get("/track/{tracking_id}", summary="Check Your Lead Status", tags=["Leads"])
+def track_lead(tracking_id: str, db: Session = Depends(get_db)):
+    lead = db.query(DBLead).filter(DBLead.tracking_id == tracking_id).first()
+    if lead:
+        return {
+            "title": lead.title,
+            "status": lead.status,
+            "assigned_verifier": lead.assigned_verifier,
+            "verifier_comments": lead.verifier_comments
+        }
     raise HTTPException(status_code=404, detail="Invalid tracking code")
 
-# --- PRIVATE ENDPOINTS ---
-@app.get("/leads/{lead_id}", response_model=LeadData, summary="Get Lead Details", tags=["Leads"])
-def get_lead(lead_id: int, current_verifier: str = Depends(get_current_verifier)):
-    for lead in leads_data:
-        if lead.id == lead_id:
-            return lead
 
+@app.get("/leads/{lead_id}", response_model=LeadData, summary="Get Lead Details", tags=["Leads"])
+def get_lead(lead_id: int, current_verifier: str = Depends(get_current_verifier), db: Session = Depends(get_db)):
+    lead = db.query(DBLead).filter(DBLead.id == lead_id).first()
+    if lead:
+        lead_dict = lead.__dict__
+        lead_dict['stakeholders'] = json.loads(lead.stakeholders)
+        return lead_dict
     raise HTTPException(status_code=404, detail="Lead not found")
 
+
 @app.get("/leads", response_model=list[LeadData], summary="List Leads", tags=["Leads"])
-def list_leads(limit: int = 10, current_verifier: str = Depends(get_current_verifier)):
-    return leads_data[:limit]
+def list_leads(limit: int = 10, current_verifier: str = Depends(get_current_verifier), db: Session = Depends(get_db)):
+    leads = db.query(DBLead).limit(limit).all()
+    result = []
+    for lead in leads:
+        lead_dict = lead.__dict__
+        lead_dict['stakeholders'] = json.loads(lead.stakeholders)
+        result.append(lead_dict)
+    return result
+
 
 @app.patch("/leads/{lead_id}/status", summary="Update Lead Status", tags=["Leads"])
-def update_lead_status(lead_id: int, update_data: LeadUpdate, current_verifier: str = Depends(get_current_verifier)):
-    for lead in leads_data:
-        if lead.id == lead_id:
-            lead.status = update_data.status
+def update_lead_status(lead_id: int, update_data: LeadUpdate, current_verifier: str = Depends(get_current_verifier),
+                       db: Session = Depends(get_db)):
+    lead = db.query(DBLead).filter(DBLead.id == lead_id).first()
+    if lead:
+        lead.status = update_data.status
+        if update_data.verifier_comments is not None:
+            lead.verifier_comments = update_data.verifier_comments
+        lead.assigned_verifier = current_verifier
 
-            if update_data.verifier_comments is not None:
-                lead.verifier_comments = update_data.verifier_comments
+        db.commit()
+        db.refresh(lead)
 
-            lead.assigned_verifier = current_verifier
-
-            return {"message": "Lead updated successfully", "lead": lead}
+        lead_dict = lead.__dict__
+        lead_dict['stakeholders'] = json.loads(lead.stakeholders)
+        return {"message": "Lead updated successfully", "lead": lead_dict}
 
     raise HTTPException(status_code=404, detail="Lead not found")
