@@ -55,7 +55,7 @@ uvicorn main:app --reload
 ```
 The API will be available at http://127.0.0.1:8000. SQLAlchemy will automatically detect the database connection and generate the required tables on startup.
 
-### 2. Start the Frontend
+### 3. Start the Frontend
 Since the frontend uses pure HTML/JS/CSS, you can open the index.html file in your browser.
 However, it is recommended to use a local server:
 
