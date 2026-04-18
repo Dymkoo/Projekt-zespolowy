@@ -35,10 +35,10 @@ Open your terminal, navigate to the project directory, and run the following com
 python -m venv venv
 
 # Activate the virtual environment
-# On Windows:
-venv\Scripts\activate
-# On macOS/Linux:
-source venv/bin/activate
+  # On Windows:
+    venv\Scripts\activate
+  # On macOS/Linux:
+    source venv/bin/activate
 
 # Install dependencies
 pip install -r requirements.txt
@@ -47,4 +47,15 @@ pip install -r requirements.txt
 uvicorn main:app --reload
 ```
 The API will be available at http://127.0.0.1:8000.
-You can view the interactive API documentation at http://127.0.0.1:8000/docs.
+
+### 2. Start the Frontend
+Since the frontend uses pure HTML/JS/CSS, you can open the index.html file in your browser.
+However, it is recommended to use a local server:
+
+* If using VS Code, install the **Live Server** extension, right-click on index.html, and select "Open with Live Server".
+
+Alternatively, you can run a Python HTTP server in the project directory:
+```
+python -m http.server 5500
+```
+and open http://localhost:5500 in your browser.
