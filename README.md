@@ -15,6 +15,8 @@ This repository contains the prototype for the Volvo IDEA project. It includes a
 * Python 3.10+
 * FastAPI
 * Pydantic
+* SQLAlchemy (ORM)
+* PostgreSQL (via Docker)
 * Uvicorn (ASGI server)
 
 ## Features
@@ -22,12 +24,17 @@ This repository contains the prototype for the Volvo IDEA project. It includes a
 * **Submit New Initiatives:** A step-by-step tile-based form with real-time HTML5 validation.
 * **Track Status:** Users can track the progress of their initiative using an auto-generated Tracking ID (UUID).
 * **Verifier Dashboard:** A protected route for verifiers to log in, view all submitted leads in a table, preview full details in a modal, and update the initiative's status.
+* **Persistent Storage:** Fully relational PostgreSQL database schema for reliable data retention and future PowerBI integration.
 
 ## How to run locally
 
-To run this project, you need to start both the Backend server and the Frontend interface.
-
-### 1. Start the Backend
+To run this project, you need to start: the Backend server, the Frontend interface and a PostgreSQL database.
+### 1. Start the Database
+The backend requires a PostgreSQL database. The easiest way to run this is via Docker. Open your terminal and execute:
+```bash
+docker run --name idea-postgres -e POSTGRES_USER=admin -e POSTGRES_PASSWORD=cisco123 -e POSTGRES_DB=idea_db -p 5433:5432 -d postgres
+```
+### 2. Start the Backend
 Open your terminal, navigate to the project directory, and run the following commands:
 
 ```bash
@@ -46,7 +53,7 @@ pip install -r requirements.txt
 # Start the FastAPI server
 uvicorn main:app --reload
 ```
-The API will be available at http://127.0.0.1:8000.
+The API will be available at http://127.0.0.1:8000. SQLAlchemy will automatically detect the database connection and generate the required tables on startup.
 
 ### 2. Start the Frontend
 Since the frontend uses pure HTML/JS/CSS, you can open the index.html file in your browser.
