@@ -9,14 +9,15 @@ import uuid
 import json
 from sqlalchemy import create_engine, Column, Integer, String, Text, Date
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
-
+#Database Configuration
+# Hardcoded connection string
 SQLALCHEMY_DATABASE_URL = "postgresql://admin:cisco123@localhost:5433/idea_db"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-
+#Database Models
 class DBLead(Base):
     __tablename__ = "leads"
 
@@ -38,7 +39,7 @@ class DBLead(Base):
     business_owner_email = Column(String)
     stakeholders = Column(String, default="[]")
 
-
+# Automatically generate tables if they don't exist
 Base.metadata.create_all(bind=engine)
 
 
@@ -49,13 +50,14 @@ def get_db():
     finally:
         db.close()
 
-
+#Application Setup
 app = FastAPI(
     title="IDEA API",
     description="API for registering and initial management of initiative leads.",
     version="0.3.0",
 )
 
+# Enable Cross-Origin Resource Sharing (CORS) for frontend interaction
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -64,8 +66,10 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+#Authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
 
+#***Temporary*** hardcoded credentials for the prototype
 VERIFIERS = {
     "admin": "cisco123"
 }
@@ -80,7 +84,7 @@ def get_current_verifier(token: str = Depends(oauth2_scheme)):
         )
     return token
 
-
+#Pydantic Schemas (Data Validation)
 class Status(str, Enum):
     SUBMITTED = "Submitted"
     UNDER_REVIEW = "Under Review"
@@ -117,6 +121,7 @@ class LeadUpdate(BaseModel):
     status: Status
     verifier_comments: str | None = Field(default=None)
 
+#Endpoints
 
 @app.get("/", summary="Redirect to Docs", tags=["Redirects"])
 def redirect_to_docs():
