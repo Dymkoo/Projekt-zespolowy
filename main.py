@@ -2,16 +2,20 @@ from fastapi import FastAPI, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, SecretStr, NameEmail
 from datetime import date
 from enum import Enum
 import uuid
 import json
 from sqlalchemy import create_engine, Column, Integer, String, Text, Date
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
+from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
+import os
+
 #Database Configuration
 # Hardcoded connection string
-SQLALCHEMY_DATABASE_URL = "postgresql://admin:cisco123@localhost:5433/idea_db"
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+SQLALCHEMY_DATABASE_URL = f"postgresql://admin:{DB_PASSWORD}@db:5432/idea_db"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -70,8 +74,10 @@ app.add_middleware(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
 
 #***Temporary*** hardcoded credentials for the prototype
+VERIFIER_PASSWORD=os.getenv("VERIFIER_PASSWORD")
+
 VERIFIERS = {
-    "admin": "cisco123"
+    "admin": VERIFIER_PASSWORD
 }
 
 
@@ -83,6 +89,36 @@ def get_current_verifier(token: str = Depends(oauth2_scheme)):
             headers={"WWW-Authenticate": "Bearer"},
         )
     return token
+
+# Mail server configuration (SMTP)
+EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD")
+
+mail_config = ConnectionConfig(
+    MAIL_USERNAME="volvoenjoyerideavolvo@gmail.com",
+    MAIL_PASSWORD=SecretStr(EMAIL_APP_PASSWORD),
+    MAIL_FROM="volvoenjoyerideavolvo@gmail.com",
+    MAIL_PORT=587,
+    MAIL_SERVER="smtp.gmail.com",
+    MAIL_FROM_NAME="IDEA Platform",
+    MAIL_STARTTLS=True,
+    MAIL_SSL_TLS=False,
+    USE_CREDENTIALS=True,
+    VALIDATE_CERTS=True
+)
+
+fast_mail = FastMail(mail_config)
+
+# Helper function to send emails in the background
+async def send_email_notification(subject: str, recipients: list[str], body: str):
+    name_email_recipients = [NameEmail(name="", email=r) for r in recipients]
+
+    message = MessageSchema(
+        subject=subject,
+        recipients=name_email_recipients,
+        body=body,
+        subtype=MessageType.plain
+    )
+    await fast_mail.send_message(message)
 
 #Pydantic Schemas (Data Validation)
 class Status(str, Enum):
@@ -137,7 +173,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends()):
 
 @app.post("/leads", summary="Submit Lead Form", tags=["Leads"])
 async def create_lead(lead: LeadCreate, db: Session = Depends(get_db)):
-    new_tracking_id = str(uuid.uuid4())
+    new_tracking_id = str(uuid.uuid4()).split('-')[0]
     db_lead = DBLead(
         tracking_id=new_tracking_id,
         title=lead.title,
@@ -156,6 +192,22 @@ async def create_lead(lead: LeadCreate, db: Session = Depends(get_db)):
     db.add(db_lead)
     db.commit()
     db.refresh(db_lead)
+
+    tracking_url = f"http://localhost:5500/track.html"
+
+    email_body = (
+        f"Thank you for submitting your lead!\n\n"
+        f"You can check its status clicking the link below and entering your tracking ID: {db_lead.tracking_id}\n"
+        f"{tracking_url}\n\n"
+        "Best regards,\n"
+        "Volvo"
+    )
+
+    await send_email_notification(
+        subject="IDEA Platform - Lead Submission",
+        recipients=[str(lead.spoc_email), str(lead.business_owner_email)],
+        body=email_body,
+    )
 
     return {
         "message": "Lead submitted successfully",
@@ -182,7 +234,7 @@ def get_lead(lead_id: int, current_verifier: str = Depends(get_current_verifier)
     lead = db.query(DBLead).filter(DBLead.id == lead_id).first()
     if lead:
         lead_dict = lead.__dict__
-        lead_dict['stakeholders'] = json.loads(lead.stakeholders)
+        lead_dict['stakeholders'] = json.loads(str(lead.stakeholders))
         return lead_dict
     raise HTTPException(status_code=404, detail="Lead not found")
 
@@ -193,13 +245,13 @@ def list_leads(limit: int = 10, current_verifier: str = Depends(get_current_veri
     result = []
     for lead in leads:
         lead_dict = lead.__dict__
-        lead_dict['stakeholders'] = json.loads(lead.stakeholders)
+        lead_dict['stakeholders'] = json.loads(str(lead.stakeholders))
         result.append(lead_dict)
     return result
 
 
 @app.patch("/leads/{lead_id}/status", summary="Update Lead Status", tags=["Leads"])
-def update_lead_status(lead_id: int, update_data: LeadUpdate, current_verifier: str = Depends(get_current_verifier),
+async def update_lead_status(lead_id: int, update_data: LeadUpdate, current_verifier: str = Depends(get_current_verifier),
                        db: Session = Depends(get_db)):
     lead = db.query(DBLead).filter(DBLead.id == lead_id).first()
     if lead:
@@ -211,8 +263,24 @@ def update_lead_status(lead_id: int, update_data: LeadUpdate, current_verifier: 
         db.commit()
         db.refresh(lead)
 
+        tracking_url = f"http://localhost:5500/track.html"
+
+        email_body = (
+            f"The status of your lead '{lead.title}' has been updated to: {lead.status}.\n\n"
+            f"To see more information, click the link below and enter your tracking ID: {lead.tracking_id}\n"
+            f"{tracking_url}\n\n"
+            "Best regards,\n"
+            "Volvo"
+        )
+
+        await send_email_notification(
+            subject=f"IDEA Platform - Lead Status Update: {lead.title}",
+            recipients=[str(lead.spoc_email), str(lead.business_owner_email)],
+            body=email_body
+        )
+
         lead_dict = lead.__dict__
-        lead_dict['stakeholders'] = json.loads(lead.stakeholders)
+        lead_dict['stakeholders'] = json.loads(str(lead.stakeholders))
         return {"message": "Lead updated successfully", "lead": lead_dict}
 
     raise HTTPException(status_code=404, detail="Lead not found")

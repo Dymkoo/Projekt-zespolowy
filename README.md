@@ -12,7 +12,7 @@ This repository contains the prototype for the Volvo IDEA project. It includes a
 * Bootstrap 5 (UI components, Grid system)
 
 **Backend:**
-* Python 3.10+
+* Python 3.14
 * FastAPI
 * Pydantic
 * SQLAlchemy (ORM)
