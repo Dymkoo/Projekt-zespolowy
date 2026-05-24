@@ -11,17 +11,17 @@ from sqlalchemy import create_engine, Column, Integer, String, Text, Date
 from sqlalchemy.orm import declarative_base, sessionmaker, Session
 from fastapi_mail import FastMail, MessageSchema, ConnectionConfig, MessageType
 import os
+import time
+from sqlalchemy.exc import OperationalError
 
-#Database Configuration
-# Hardcoded connection string
 DB_PASSWORD = os.getenv("DB_PASSWORD")
+VERIFIER_PASSWORD = os.getenv("VERIFIER_PASSWORD")
 SQLALCHEMY_DATABASE_URL = f"postgresql://admin:{DB_PASSWORD}@db:5432/idea_db"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
-#Database Models
 class DBLead(Base):
     __tablename__ = "leads"
 
@@ -43,9 +43,40 @@ class DBLead(Base):
     business_owner_email = Column(String)
     stakeholders = Column(String, default="[]")
 
-# Automatically generate tables if they don't exist
+class DBVerifier(Base):
+    __tablename__ = "verifiers"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String, unique=True, index=True)
+    password = Column(String)
+
+def wait_for_db(engine, max_retries=10, delay=3):
+    retries = 0
+    while retries < max_retries:
+        try:
+            with engine.connect() as conn:
+                return True
+        except OperationalError:
+            retries += 1
+            time.sleep(delay)
+    raise Exception("Database connection failed")
+
+wait_for_db(engine)
+
 Base.metadata.create_all(bind=engine)
 
+def initialize_admin_user():
+    db = SessionLocal()
+    try:
+        existing_admin = db.query(DBVerifier).filter(DBVerifier.username == "admin").first()
+        if not existing_admin:
+            admin_user = DBVerifier(username="admin", password=VERIFIER_PASSWORD)
+            db.add(admin_user)
+            db.commit()
+    finally:
+        db.close()
+
+initialize_admin_user()
 
 def get_db():
     db = SessionLocal()
@@ -54,14 +85,12 @@ def get_db():
     finally:
         db.close()
 
-#Application Setup
 app = FastAPI(
     title="IDEA API",
     description="API for registering and initial management of initiative leads.",
     version="0.3.0",
 )
 
-# Enable Cross-Origin Resource Sharing (CORS) for frontend interaction
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -70,19 +99,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-#Authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
 
-#***Temporary*** hardcoded credentials for the prototype
-VERIFIER_PASSWORD=os.getenv("VERIFIER_PASSWORD")
-
-VERIFIERS = {
-    "admin": VERIFIER_PASSWORD
-}
-
-
-def get_current_verifier(token: str = Depends(oauth2_scheme)):
-    if token not in VERIFIERS:
+def get_current_verifier(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
+    verifier = db.query(DBVerifier).filter(DBVerifier.username == token).first()
+    if not verifier:
         raise HTTPException(
             status_code=404,
             detail="Unauthorized. Please log in as a verifier.",
@@ -90,7 +111,6 @@ def get_current_verifier(token: str = Depends(oauth2_scheme)):
         )
     return token
 
-# Mail server configuration (SMTP)
 EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD")
 
 mail_config = ConnectionConfig(
@@ -108,7 +128,6 @@ mail_config = ConnectionConfig(
 
 fast_mail = FastMail(mail_config)
 
-# Helper function to send emails in the background
 async def send_email_notification(subject: str, recipients: list[str], body: str):
     name_email_recipients = [NameEmail(name="", email=r) for r in recipients]
 
@@ -120,7 +139,6 @@ async def send_email_notification(subject: str, recipients: list[str], body: str
     )
     await fast_mail.send_message(message)
 
-#Pydantic Schemas (Data Validation)
 class Status(str, Enum):
     SUBMITTED = "Submitted"
     UNDER_REVIEW = "Under Review"
@@ -128,7 +146,6 @@ class Status(str, Enum):
     APPROVED = "Approved - Discovery Phase"
     ONGOING = "Ongoing - Implementation Phase"
     REJECTED = "Rejected / Needs Clarification"
-
 
 class LeadCreate(BaseModel):
     title: str = Field(..., description="Initiative title")
@@ -144,7 +161,6 @@ class LeadCreate(BaseModel):
     business_owner_email: EmailStr = Field(..., description="Business Owner")
     stakeholders: list[str] = Field(default=[], description="Involved Stakeholders")
 
-
 class LeadData(LeadCreate):
     id: int | None = None
     tracking_id: str | None = None
@@ -152,24 +168,20 @@ class LeadData(LeadCreate):
     assigned_verifier: str | None = None
     verifier_comments: str | None = None
 
-
 class LeadUpdate(BaseModel):
     status: Status
     verifier_comments: str | None = Field(default=None)
-
-#Endpoints
 
 @app.get("/", summary="Redirect to Docs", tags=["Redirects"])
 def redirect_to_docs():
     return RedirectResponse(url="/docs")
 
-
 @app.post("/auth", summary="Login for Verifiers", tags=["Authentication"])
-def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    if form_data.username in VERIFIERS and VERIFIERS[form_data.username] == form_data.password:
-        return {"access_token": form_data.username, "token_type": "bearer"}
+def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
+    verifier = db.query(DBVerifier).filter(DBVerifier.username == form_data.username).first()
+    if verifier and verifier.password == form_data.password:
+        return {"access_token": verifier.username, "token_type": "bearer"}
     raise HTTPException(status_code=400, detail="Incorrect username or password")
-
 
 @app.post("/leads", summary="Submit Lead Form", tags=["Leads"])
 async def create_lead(lead: LeadCreate, db: Session = Depends(get_db)):
@@ -215,7 +227,6 @@ async def create_lead(lead: LeadCreate, db: Session = Depends(get_db)):
         "check_status_url": f"/track/{db_lead.tracking_id}"
     }
 
-
 @app.get("/track/{tracking_id}", summary="Check Your Lead Status", tags=["Leads"])
 def track_lead(tracking_id: str, db: Session = Depends(get_db)):
     lead = db.query(DBLead).filter(DBLead.tracking_id == tracking_id).first()
@@ -228,7 +239,6 @@ def track_lead(tracking_id: str, db: Session = Depends(get_db)):
         }
     raise HTTPException(status_code=404, detail="Invalid tracking code")
 
-
 @app.get("/leads/{lead_id}", response_model=LeadData, summary="Get Lead Details", tags=["Leads"])
 def get_lead(lead_id: int, current_verifier: str = Depends(get_current_verifier), db: Session = Depends(get_db)):
     lead = db.query(DBLead).filter(DBLead.id == lead_id).first()
@@ -237,7 +247,6 @@ def get_lead(lead_id: int, current_verifier: str = Depends(get_current_verifier)
         lead_dict['stakeholders'] = json.loads(str(lead.stakeholders))
         return lead_dict
     raise HTTPException(status_code=404, detail="Lead not found")
-
 
 @app.get("/leads", response_model=list[LeadData], summary="List Leads", tags=["Leads"])
 def list_leads(limit: int = 10, current_verifier: str = Depends(get_current_verifier), db: Session = Depends(get_db)):
@@ -248,7 +257,6 @@ def list_leads(limit: int = 10, current_verifier: str = Depends(get_current_veri
         lead_dict['stakeholders'] = json.loads(str(lead.stakeholders))
         result.append(lead_dict)
     return result
-
 
 @app.patch("/leads/{lead_id}/status", summary="Update Lead Status", tags=["Leads"])
 async def update_lead_status(lead_id: int, update_data: LeadUpdate, current_verifier: str = Depends(get_current_verifier),
