@@ -6,6 +6,8 @@ COPY track.html /usr/share/nginx/html/
 COPY style.css /usr/share/nginx/html/
 COPY app.js /usr/share/nginx/html/
 COPY favicon.png /usr/share/nginx/html/
+COPY Volvo-Spread-Word-Mark-Black.svg /usr/share/nginx/html/
+COPY *.woff2 /usr/share/nginx/html/
 
 EXPOSE 80
 
