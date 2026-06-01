@@ -3,21 +3,35 @@ let currentToken = localStorage.getItem('token');
 let previewModalInstance = null;
 let statusModalInstance = null;
 
-// --- 1. Form Submission (index.html) ---
+// --- Navbar Update ---
+function updateNavbar() {
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach(link => {
+        if (link.textContent.trim().toUpperCase() === 'LOGIN') {
+            if (currentToken) {
+                link.textContent = `LOGOUT (${currentToken})`;
+                link.href = '#';
+                link.addEventListener('click', (e) => {
+                    e.preventDefault();
+                    localStorage.removeItem('token');
+                    currentToken = null;
+                    window.location.href = 'index.html';
+                });
+            }
+        }
+    });
+}
+document.addEventListener('DOMContentLoaded', updateNavbar);
+
+// --- Form Submission ---
 const leadForm = document.getElementById('leadForm');
 if (leadForm) {
     leadForm.addEventListener('submit', async (e) => {
         e.preventDefault();
         
-        // Custom HTML5 Validation
         if (!leadForm.checkValidity()) {
             e.stopPropagation();
             leadForm.classList.add('was-validated');
-            const firstInvalid = leadForm.querySelector(':invalid');
-            if (firstInvalid) {
-                firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                firstInvalid.focus();
-            }
             return;
         }
         leadForm.classList.remove('was-validated');
@@ -33,8 +47,8 @@ if (leadForm) {
             risks: document.getElementById('risks').value || null,
             time_plan: document.getElementById('time_plan').value,
             active_wbs: document.getElementById('active_wbs').value || null,
-            spoc_email: document.getElementById('spoc_email').value,
-            business_owner_email: document.getElementById('business_owner_email').value,
+            contact_email: document.getElementById('contact_email').value,
+            owner_email: document.getElementById('owner_email').value,
             stakeholders: stakeholders ? stakeholders.split(',').map(s => s.trim()) : []
         };
 
@@ -55,13 +69,16 @@ if (leadForm) {
                 leadForm.reset();
             } else {
                 resultDiv.classList.add('alert-danger');
-                resultDiv.innerText = 'Error submitting lead. Please try again.';
+                resultDiv.innerText = 'Error submitting lead. Check if backend is running.';
             }
-        } catch (err) { console.error('Submission error:', err); }
+        } catch (err) { 
+            console.error('Submission error:', err); 
+            alert('Cannot connect to the server. Make sure Docker is running.');
+        }
     });
 }
 
-// --- 2. Lead Tracking (track.html) ---
+// --- Track Status ---
 const trackForm = document.getElementById('trackForm');
 if (trackForm) {
     trackForm.addEventListener('submit', async (e) => {
@@ -89,7 +106,7 @@ if (trackForm) {
     });
 }
 
-// --- 3. Authentication & Dashboard Table (dashboard.html) ---
+// --- Authentication & Dashboard ---
 const loginForm = document.getElementById('loginForm');
 const dashboardSec = document.getElementById('dashboardSection');
 const loginSec = document.getElementById('loginSection');
@@ -114,7 +131,7 @@ if (dashboardSec) {
                 const data = await res.json();
                 localStorage.setItem('token', data.access_token);
                 currentToken = data.access_token;
-                showDashboard();
+                window.location.reload();
             } else {
                 document.getElementById('loginError').classList.remove('d-none');
             }
@@ -124,8 +141,7 @@ if (dashboardSec) {
     document.getElementById('logoutBtn')?.addEventListener('click', () => {
         localStorage.removeItem('token');
         currentToken = null;
-        loginSec.classList.remove('d-none');
-        dashboardSec.classList.add('d-none');
+        window.location.reload();
     });
 }
 
@@ -133,6 +149,7 @@ function showDashboard() {
     loginSec.classList.add('d-none');
     dashboardSec.classList.remove('d-none');
     loadLeads();
+    loadLeaders();
 }
 
 async function loadLeads() {
@@ -164,7 +181,47 @@ async function loadLeads() {
     } catch (err) { console.error('Fetch leads error:', err); }
 }
 
-// --- 4. Preview Modal ---
+async function loadLeaders() {
+    try {
+        const res = await fetch(`${API_URL}/leaders`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
+        if (res.ok) {
+            const leaders = await res.json();
+            document.getElementById('leadersSection').classList.remove('d-none');
+            const tbody = document.getElementById('leadersTableBody');
+            tbody.innerHTML = '';
+            
+            leaders.forEach(leader => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${leader.username}</td>
+                    <td>${leader.lead_id || 'None'}</td>
+                    <td>${leader.lead_title || 'None'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" style="border-radius:0; font-weight:700;" onclick="deleteLeader('${leader.username}')">REMOVE</button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+    } catch (err) { console.error('Fetch leaders error:', err); }
+}
+
+async function deleteLeader(username) {
+    if(!confirm(`Are you sure you want to remove leader: ${username}?`)) return;
+    try {
+        const res = await fetch(`${API_URL}/leaders/${username}`, {
+            method: 'DELETE',
+            headers: { 'Authorization': `Bearer ${currentToken}` }
+        });
+        if (res.ok) {
+            loadLeaders();
+        } else {
+            alert("Failed to delete leader.");
+        }
+    } catch (err) { console.error('Delete leader error:', err); }
+}
+
+// --- Preview Modal ---
 async function openPreviewModal(leadId) {
     try {
         const res = await fetch(`${API_URL}/leads/${leadId}`, { headers: { 'Authorization': `Bearer ${currentToken}` } });
@@ -172,7 +229,6 @@ async function openPreviewModal(leadId) {
         
         const lead = await res.json();
         
-        // Populate fields
         document.getElementById('previewId').innerText = lead.id;
         document.getElementById('previewTitle').value = lead.title;
         document.getElementById('previewOrg').value = lead.organization;
@@ -183,16 +239,14 @@ async function openPreviewModal(leadId) {
         document.getElementById('previewRisks').value = lead.risks || 'No risks provided';
         document.getElementById('previewTime').value = lead.time_plan;
         document.getElementById('previewWbs').value = lead.active_wbs || 'None';
-        document.getElementById('previewSpoc').value = lead.spoc_email;
-        document.getElementById('previewOwner').value = lead.business_owner_email;
+        document.getElementById('previewContact').value = lead.contact_email;
+        document.getElementById('previewOwner').value = lead.owner_email;
         document.getElementById('previewStakeholders').value = lead.stakeholders?.join(', ') || 'None';
 
-        // Open modal
         const modalEl = document.getElementById('previewModal');
         if(!previewModalInstance) previewModalInstance = new bootstrap.Modal(modalEl);
         previewModalInstance.show();
 
-        // Auto-resize textareas on modal load
         modalEl.addEventListener('shown.bs.modal', () => {
             modalEl.querySelectorAll('textarea.auto-resize').forEach(ta => {
                 ta.style.height = 'auto'; 
@@ -200,14 +254,12 @@ async function openPreviewModal(leadId) {
             });
         }, { once: true });
         
-    } catch (err) {
-        console.error(err);
-        alert('Critical connection error.');
-    }
+    } catch (err) { console.error(err); alert('Critical connection error.'); }
 }
 
-// --- 5. Status Update Modal ---
+// --- Status Update Modal ---
 function openStatusModal(leadId, currentStatus) {
+    document.getElementById('modalLeaderEmail').value = '';
     document.getElementById('modalLeadId').value = leadId;
     document.getElementById('modalStatus').value = currentStatus;
     document.getElementById('modalComments').value = '';
@@ -218,10 +270,16 @@ function openStatusModal(leadId, currentStatus) {
 
 document.getElementById('saveStatusBtn')?.addEventListener('click', async () => {
     const leadId = document.getElementById('modalLeadId').value;
+    const leaderEmail = document.getElementById('modalLeaderEmail').value;
+    
     const data = {
         status: document.getElementById('modalStatus').value,
         verifier_comments: document.getElementById('modalComments').value || null
     };
+
+    if (leaderEmail) {
+        data.project_leader_email = leaderEmail;
+    }
 
     try {
         const res = await fetch(`${API_URL}/leads/${leadId}/status`, {
@@ -233,6 +291,40 @@ document.getElementById('saveStatusBtn')?.addEventListener('click', async () => 
         if (res.ok) {
             statusModalInstance.hide();
             loadLeads();
+            loadLeaders();
+        } else {
+            const errorData = await res.json();
+            alert(`Access Denied: ${errorData.detail}`);
         }
     } catch (err) { console.error('Status update error:', err); }
+});
+
+// --- Change Password ---
+document.getElementById('savePwdBtn')?.addEventListener('click', async () => {
+    const old_password = document.getElementById('oldPassword').value;
+    const new_password = document.getElementById('newPassword').value;
+    const resDiv = document.getElementById('pwdResult');
+    
+    try {
+        const res = await fetch(`${API_URL}/auth/change-password`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${currentToken}` },
+            body: JSON.stringify({ old_password, new_password })
+        });
+        
+        resDiv.classList.remove('d-none', 'alert-success', 'alert-danger');
+        if (res.ok) {
+            resDiv.classList.add('alert-success');
+            resDiv.innerText = 'Password updated successfully!';
+            setTimeout(() => {
+                bootstrap.Modal.getInstance(document.getElementById('passwordModal')).hide();
+                document.getElementById('oldPassword').value = '';
+                document.getElementById('newPassword').value = '';
+                resDiv.classList.add('d-none');
+            }, 1500);
+        } else {
+            resDiv.classList.add('alert-danger');
+            resDiv.innerText = 'Failed to update password. Check your old password.';
+        }
+    } catch (err) { console.error('Password change error:', err); }
 });

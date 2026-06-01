@@ -62,12 +62,12 @@ body::-webkit-scrollbar {
 }
 
 /* --- TYPOGRAPHY --- */
-h1, h2, h3, .modal-title {
-    font-family: 'Volvo Broad Spread', Impact, sans-serif !important;
+h1, h2, .modal-title {
+    font-family: 'Volvo Broad Spread', Impact, sans-serif;
     color: var(--volvo-black);
     text-transform: uppercase;
     letter-spacing: 1px;
-    font-weight: normal !important;
+    font-weight: normal;
 }
 
 h4, h5, h6 {
