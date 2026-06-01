@@ -32,7 +32,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     hashed_bytes = hashed_password.encode("utf-8")
     return bcrypt.checkpw(pwd_bytes, hashed_bytes)
 
-SQLALCHEMY_DATABASE_URL = f"postgresql://admin:{DB_PASSWORD}@db:5432/idea_db"
+SQLALCHEMY_DATABASE_URL = f"postgresql://{VERIFIER_USERNAME}:{DB_PASSWORD}@db:5432/idea_db"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -129,9 +129,9 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     return {"username": user.username, "role": user.role, "lead_id": user.lead_id}
 
 mail_config = ConnectionConfig(
-    MAIL_USERNAME="volvoenjoyerideavolvo@gmail.com",
+    MAIL_USERNAME=VERIFIER_EMAIL,
     MAIL_PASSWORD=SecretStr(EMAIL_APP_PASSWORD),
-    MAIL_FROM="volvoenjoyerideavolvo@gmail.com",
+    MAIL_FROM=VERIFIER_EMAIL,
     MAIL_PORT=587,
     MAIL_SERVER="smtp.gmail.com",
     MAIL_FROM_NAME="IDEA Team",
@@ -366,9 +366,9 @@ def list_leaders(current_user: dict = Depends(get_current_user), db: Session = D
                 lead_title = lead.title
 
         result.append({"id": leader.id, "username": leader.username, "lead_id": leader.lead_id, "lead_title": lead_title})
-        return result
+    return result
 
-@app.delete("/leaders/{leader_id}", summary="Delete Leader", tags=["Leaders Management"])
+@app.delete("/leaders/{username}", summary="Delete Leader", tags=["Leaders Management"])
 def delete_leader(username: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user["role"] != "verifier":
         raise HTTPException(status_code=403, detail="Access only for verifiers")
