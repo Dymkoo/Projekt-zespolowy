@@ -32,6 +32,7 @@ This repository contains the prototype for the Volvo IDEA project. It includes a
 * **Automated Email Notifications:** The system automatically sends emails upon lead submission, status updates, and when a new Project Leader is assigned (generating and sending temporary login credentials).
 * **Secure Authentication:** Passwords are encrypted in the database. The system supports secure login sessions and password updates.
 * **Persistent Storage:** Fully relational PostgreSQL database schema for reliable data retention and future PowerBI integration.
+<br>
 
 ## How to run locally
 
@@ -39,6 +40,8 @@ The entire application stack (Frontend, Backend, and Database) is fully containe
 
 ### 1. Prerequisites
 Ensure you have [Docker](https://www.docker.com/) and Docker Compose installed and running on your machine.
+<br>
+<br>
 
 ### 2. Environment Variables
 Create a `.env` file in the root directory of the project and provide the following configuration:
@@ -50,6 +53,7 @@ VERIFIER_EMAIL=admin@example.com
 VERIFIER_USERNAME=admin_user
 VERIFIER_PASSWORD=your_secure_admin_password
 ```
+<br>
 
 ### 3. Start the Application
 Open your terminal, navigate to the project directory, and run:
@@ -57,12 +61,17 @@ Open your terminal, navigate to the project directory, and run:
 docker compose up -d --build
 ```
 SQLAlchemy will automatically detect the database connection and generate all required tables on startup.
+<br>
+<br>
 
 ### 4. Access the Project
 Once the containers are successfully built and started, you can access the application at:
 
 Frontend (User Interface): http://localhost:5500
+
 Backend (API & Swagger Docs): http://localhost:8000/docs
+<br>
+<br>
 
 ### 5. Stopping the Application
 To safely stop the servers and remove the containers, open your terminal and run:
