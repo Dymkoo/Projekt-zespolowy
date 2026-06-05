@@ -359,7 +359,7 @@ async def update_lead_status(lead_id: int, update_data: LeadUpdate, current_user
     lead_dict["stakeholders"] = json.loads(str(lead.stakeholders))
     return {"message": "Lead updated successfully", "lead": lead_dict}
 
-@app.post("/leads/{lead_id}/assign-leader", summary="Assign Project Leader", tags=["Leads"])
+@app.post("/leads/{lead_id}/assign-leader", summary="Assign Project Leader", tags=["Leaders Management"])
 async def assign_leader(lead_id: int, data: AssignLeader, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user["role"] != "verifier":
         raise HTTPException(status_code=403, detail="Access only for verifiers")
@@ -376,7 +376,26 @@ async def assign_leader(lead_id: int, data: AssignLeader, current_user: dict = D
         if lead_id not in current_ids:
             current_ids.append(lead_id)
             existing_leader.lead_ids = json.dumps(current_ids)
-            db.commit()
+
+        lead.assigned_leader = str(data.project_leader_email)
+        db.commit()
+
+        leader_email_body = (
+            "Hello,\n\n"
+            "You have been assigned as Leads Coordinator for:\n\n"
+            f"Request ID: {lead.tracking_id}\n\n"
+            "Please make sure to preview and validate the request.\n\n"
+            "Your actions are to update status in the tool when needed and contact requestor for further collaboration.\n\n"
+            "Best regards,\n"
+            "IDEA Team"
+        )
+
+        await send_email_notification(
+            subject=f"{lead.tracking_id} - IDEA Tool Request Coordination",
+            recipients=[str(data.project_leader_email)],
+            body=leader_email_body
+        )
+
         return {"message": f"Leader assigned to project {lead_id} successfully"}
 
     else:
@@ -408,6 +427,32 @@ async def assign_leader(lead_id: int, data: AssignLeader, current_user: dict = D
         db.commit()
         return {"message": "New leader created and assigned successfully"}
 
+@app.delete("/leads/{lead_id}/unassign-leader", summary="Unassign Project Leader", tags=["Leaders Management"])
+def unassign_leader(lead_id: int, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user["role"] != "verifier":
+        raise HTTPException(status_code=403, detail="Access only for verifiers")
+
+    lead = db.query(DBLead).filter(DBLead.id == lead_id).first()
+
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    if not lead.assigned_leader:
+        raise HTTPException(status_code=400, detail="No leader assigned to this lead")
+
+    leader = db.query(DBUser).filter(DBUser.username == lead.assigned_leader, DBUser.role == "leader").first()
+
+    if leader:
+        current_ids = json.loads(str(leader.lead_ids)) if leader.lead_ids else []
+        if lead_id in current_ids:
+            current_ids.remove(lead_id)
+            leader.lead_ids = json.dumps(current_ids)
+
+    lead.assigned_leader = None
+
+    db.commit()
+    return {"message": f"Leader successfully unassigned from lead: {lead.title}"}
+
 @app.get("/leaders", response_model=list[LeaderResponse], summary="List of Leaders", tags=["Leaders Management"])
 def list_leaders(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user["role"] != "verifier":
@@ -426,21 +471,6 @@ def list_leaders(current_user: dict = Depends(get_current_user), db: Session = D
         result.append({"id": leader.id, "username": leader.username, "lead_ids": ids, "lead_titles": titles})
 
     return result
-
-@app.delete("/leaders/{username}", summary="Delete Leader", tags=["Leaders Management"])
-def delete_leader(username: str, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    if current_user["role"] != "verifier":
-        raise HTTPException(status_code=403, detail="Access only for verifiers")
-
-    leader = db.query(DBUser).filter(DBUser.username == username, DBUser.role == "leader").first()
-
-    if not leader:
-        raise HTTPException(status_code=404, detail="Leader not found")
-
-    db.delete(leader)
-    db.commit()
-
-    return {"message": f"Leader {username} deleted successfully"}
 
 @app.post("/auth/change-password", summary="Change Your Password", tags=["Authentication"])
 def change_password(data: PasswordChange, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
