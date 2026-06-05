@@ -3,7 +3,7 @@ from fastapi.responses import RedirectResponse
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, EmailStr, Field, SecretStr, NameEmail
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from enum import Enum
 import uuid
 import json
@@ -14,12 +14,19 @@ import os
 import time
 from sqlalchemy.exc import OperationalError
 import bcrypt
+import jwt
+from jwt.exceptions import InvalidTokenError
 
 VERIFIER_EMAIL = os.getenv("VERIFIER_EMAIL")
 EMAIL_APP_PASSWORD = os.getenv("EMAIL_APP_PASSWORD")
 VERIFIER_USERNAME = os.getenv("VERIFIER_USERNAME")
 VERIFIER_PASSWORD = os.getenv("VERIFIER_PASSWORD")
+DB_USERNAME = os.getenv("DB_USERNAME")
 DB_PASSWORD = os.getenv("DB_PASSWORD")
+
+SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 60
 
 def hash_password(password: str) -> str:
     pwd_bytes = password.encode("utf-8")
@@ -32,7 +39,17 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     hashed_bytes = hashed_password.encode("utf-8")
     return bcrypt.checkpw(pwd_bytes, hashed_bytes)
 
-SQLALCHEMY_DATABASE_URL = f"postgresql://{VERIFIER_USERNAME}:{DB_PASSWORD}@db:5432/idea_db"
+def create_access_token(data: dict, expires_delta: timedelta | None = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.now(timezone.utc) + expires_delta
+    else:
+        expire = datetime.now(timezone.utc) + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+SQLALCHEMY_DATABASE_URL = f"postgresql://{DB_USERNAME}:{DB_PASSWORD}@db:5432/idea_db"
 
 engine = create_engine(SQLALCHEMY_DATABASE_URL)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -44,7 +61,7 @@ class DBLead(Base):
     id = Column(Integer, primary_key=True, index=True)
     tracking_id = Column(String, unique=True, index=True)
     status = Column(String, default="Submitted")
-    assigned_verifier = Column(String, nullable=True)
+    assigned_leader = Column(String, nullable=True)
     verifier_comments = Column(Text, nullable=True)
     title = Column(String)
     organization = Column(String)
@@ -66,7 +83,7 @@ class DBUser(Base):
     username = Column(String, unique=True, index=True)
     password = Column(String)
     role = Column(String)
-    lead_id = Column(Integer, nullable=True)
+    lead_ids = Column(String, default="[]")
 
 def wait_for_db(engine, max_retries=10, delay=3):
     retries = 0
@@ -119,14 +136,22 @@ app.add_middleware(
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth")
 
 def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)):
-    user = db.query(DBUser).filter(DBUser.username == token).first()
+    credentials_exception = HTTPException(status_code=401, detail="Could not validate credentials", headers={"WWW-Authenticate": "Bearer"})
+
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        username: str | None = payload.get("sub")
+        if username is None:
+            raise credentials_exception
+    except InvalidTokenError:
+        raise credentials_exception
+
+    user = db.query(DBUser).filter(DBUser.username == username).first()
     if not user:
-        raise HTTPException(
-            status_code=401,
-            detail="Unauthorized. Invalid user.",
-            headers={"WWW-Authenticate": "Bearer"},
-        )
-    return {"username": user.username, "role": user.role, "lead_id": user.lead_id}
+        raise credentials_exception
+
+    lead_ids = json.loads(str(user.lead_ids)) if user.lead_ids else []
+    return {"username": user.username, "role": user.role, "lead_ids": lead_ids}
 
 mail_config = ConnectionConfig(
     MAIL_USERNAME=VERIFIER_EMAIL,
@@ -186,13 +211,15 @@ class LeadData(LeadCreate):
 class LeadUpdate(BaseModel):
     status: Status
     verifier_comments: str | None = Field(default=None)
+
+class AssignLeader(BaseModel):
     project_leader_email: EmailStr | None = Field(default=None)
 
 class LeaderResponse(BaseModel):
     id: int
     username: str
-    lead_id: int | None
-    lead_title: str | None
+    lead_ids: list[int]
+    lead_titles: list[str]
 
 class PasswordChange(BaseModel):
     old_password: str
@@ -207,7 +234,9 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
     user = db.query(DBUser).filter(DBUser.username == form_data.username).first()
 
     if user and verify_password(form_data.password, str(user.password)):
-        return {"access_token": user.username, "token_type": "bearer"}
+        access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+        access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+        return {"access_token": access_token, "token_type": "bearer"}
 
     raise HTTPException(status_code=400, detail="Incorrect username or password")
 
@@ -261,7 +290,7 @@ def track_lead(tracking_id: str, db: Session = Depends(get_db)):
         return {
             "title": lead.title,
             "status": lead.status,
-            "assigned_verifier": lead.assigned_verifier,
+            "assigned_verifier": lead.assigned_leader,
             "verifier_comments": lead.verifier_comments
         }
     raise HTTPException(status_code=404, detail="Invalid tracking code")
@@ -269,7 +298,7 @@ def track_lead(tracking_id: str, db: Session = Depends(get_db)):
 @app.get("/leads/{lead_id}", response_model=LeadData, summary="Get Lead Details", tags=["Leads"])
 def get_lead(lead_id: int, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user["role"] == "leader":
-        if current_user.get("lead_id")  != lead_id:
+        if lead_id not in current_user["lead_ids"]:
             raise HTTPException(status_code=403, detail="No permissions. You can only view your lead")
 
     lead = db.query(DBLead).filter(DBLead.id == lead_id).first()
@@ -282,7 +311,7 @@ def get_lead(lead_id: int, current_user: dict = Depends(get_current_user), db: S
 @app.get("/leads", response_model=list[LeadData], summary="List Leads", tags=["Leads"])
 def list_leads(limit: int = 10, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user["role"] == "leader":
-        leads = db.query(DBLead).filter(DBLead.id == current_user["lead_id"]).limit(limit).all()
+        leads = db.query(DBLead).filter(DBLead.id.in_(current_user["lead_ids"])).limit(limit).all()
     else:
         leads = db.query(DBLead).limit(limit).all()
 
@@ -295,8 +324,11 @@ def list_leads(limit: int = 10, current_user: dict = Depends(get_current_user), 
 
 @app.patch("/leads/{lead_id}/status", summary="Update Lead Status", tags=["Leads"])
 async def update_lead_status(lead_id: int, update_data: LeadUpdate, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
-    if current_user["role"] != "verifier":
-        raise HTTPException(status_code=403, detail="Access only for verifiers")
+    if current_user["role"] != "leader":
+        raise HTTPException(status_code=403, detail="Access only for leaders")
+
+    if lead_id not in current_user["lead_ids"]:
+        raise HTTPException(status_code=403, detail="You can only update your own lead")
 
     lead = db.query(DBLead).filter(DBLead.id == lead_id).first()
 
@@ -306,29 +338,6 @@ async def update_lead_status(lead_id: int, update_data: LeadUpdate, current_user
     lead.status = update_data.status
     if update_data.verifier_comments is not None:
         lead.verifier_comments = update_data.verifier_comments
-    lead.assigned_verifier = current_user["username"]
-
-    if update_data.project_leader_email:
-        existing_leader = db.query(DBUser).filter(DBUser.username == update_data.project_leader_email).first()
-        if not existing_leader:
-            temp_password = str(uuid.uuid4())[:8]
-            new_leader = DBUser(username=update_data.project_leader_email, password=hash_password(temp_password), role="leader", lead_id=lead_id)
-            db.add(new_leader)
-
-            leader_email_body = (
-                "Hello,\n\n"
-                f"You have been assigned as the project leader for lead: {lead.tracking_id}.\n\n"
-                f"Username: {update_data.project_leader_email}\n"
-                f"Temporary password: {temp_password}\n\n"
-                "Best regards,\n"
-                "IDEA Team"
-            )
-
-            await send_email_notification(
-                subject=f"{lead.tracking_id} - Project Leader Assignment",
-                recipients=[update_data.project_leader_email],
-                body=leader_email_body
-            )
 
     email_body = (
         "Hello,\n\n"
@@ -350,6 +359,55 @@ async def update_lead_status(lead_id: int, update_data: LeadUpdate, current_user
     lead_dict["stakeholders"] = json.loads(str(lead.stakeholders))
     return {"message": "Lead updated successfully", "lead": lead_dict}
 
+@app.post("/leads/{lead_id}/assign-leader", summary="Assign Project Leader", tags=["Leads"])
+async def assign_leader(lead_id: int, data: AssignLeader, current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
+    if current_user["role"] != "verifier":
+        raise HTTPException(status_code=403, detail="Access only for verifiers")
+
+    lead = db.query(DBLead).filter(DBLead.id == lead_id).first()
+
+    if not lead:
+        raise HTTPException(status_code=404, detail="Lead not found")
+
+    existing_leader = db.query(DBUser).filter(DBUser.username == data.project_leader_email).first()
+
+    if existing_leader:
+        current_ids = json.loads(str(existing_leader.lead_ids)) if existing_leader.lead_ids else []
+        if lead_id not in current_ids:
+            current_ids.append(lead_id)
+            existing_leader.lead_ids = json.dumps(current_ids)
+            db.commit()
+        return {"message": f"Leader assigned to project {lead_id} successfully"}
+
+    else:
+        temp_password = str(uuid.uuid4())[:8]
+        new_leader = DBUser(username=str(data.project_leader_email), password=hash_password(temp_password), role="leader", lead_ids=json.dumps([lead_id]))
+        db.add(new_leader)
+
+        lead.assigned_leader = str(data.project_leader_email)
+
+        leader_email_body = (
+            "Hello,\n\n"
+            "You have been assigned as Leads Coordinator for:\n\n"
+            f"Request ID: {lead.tracking_id}\n\n"
+            "Please make sure to preview and validate the request.\n\n"
+            "Your actions are to update status in the tool when needed and contact requestor for further collaboration.\n\n"
+            "Login details for your account:\n\n"
+            f"Username: {data.project_leader_email}\n"
+            f"Password: {temp_password}\n\n"
+            "Best regards,\n"
+            "IDEA Team"
+        )
+
+        await send_email_notification(
+            subject=f"{lead.tracking_id} - IDEA Tool Request Coordination",
+            recipients=[str(data.project_leader_email)],
+            body=leader_email_body
+        )
+
+        db.commit()
+        return {"message": "New leader created and assigned successfully"}
+
 @app.get("/leaders", response_model=list[LeaderResponse], summary="List of Leaders", tags=["Leaders Management"])
 def list_leaders(current_user: dict = Depends(get_current_user), db: Session = Depends(get_db)):
     if current_user["role"] != "verifier":
@@ -359,13 +417,14 @@ def list_leaders(current_user: dict = Depends(get_current_user), db: Session = D
 
     result = []
     for leader in leaders:
-        lead_title = None
-        if leader.lead_id:
-            lead = db.query(DBLead).filter(DBLead.id == leader.lead_id).first()
-            if lead:
-                lead_title = lead.title
+        ids = json.loads(str(leader.lead_ids)) if leader.lead_ids else []
+        titles = []
+        if ids:
+            leads = db.query(DBLead).filter(DBLead.id.in_(ids)).all()
+            titles = [lead.title for lead in leads if lead.title]
 
-        result.append({"id": leader.id, "username": leader.username, "lead_id": leader.lead_id, "lead_title": lead_title})
+        result.append({"id": leader.id, "username": leader.username, "lead_ids": ids, "lead_titles": titles})
+
     return result
 
 @app.delete("/leaders/{username}", summary="Delete Leader", tags=["Leaders Management"])
