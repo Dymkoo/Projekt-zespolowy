@@ -235,7 +235,7 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
 
     if user and verify_password(form_data.password, str(user.password)):
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
-        access_token = create_access_token(data={"sub": user.username}, expires_delta=access_token_expires)
+        access_token = create_access_token(data={"sub": user.username, "role": user.role}, expires_delta=access_token_expires)
         return {"access_token": access_token, "token_type": "bearer"}
 
     raise HTTPException(status_code=400, detail="Incorrect username or password")
@@ -275,6 +275,22 @@ async def create_lead(lead: LeadCreate, db: Session = Depends(get_db)):
         subject=f"{db_lead.tracking_id} - IDEA Tool Request Confirmation",
         recipients=[str(lead.contact_email), str(lead.owner_email)],
         body=email_body
+    )
+
+    admin_email_body = (
+        "Hello,\n\n"
+        "A new request has been submitted in the IDEA tool.\n\n"
+        f"Request ID: {db_lead.tracking_id}\n"
+        f"Title: {db_lead.title}\n\n"
+        "Please log in to the system to verify the request and assign a Leads Coordinator.\n\n"
+        "Best regards,\n"
+        "IDEA Team"
+    )
+
+    await send_email_notification(
+        subject=f"{db_lead.tracking_id} - IDEA Tool New Request Submitted",
+        recipients=[VERIFIER_EMAIL],
+        body=admin_email_body
     )
 
     return {
