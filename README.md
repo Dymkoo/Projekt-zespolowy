@@ -27,9 +27,9 @@ This repository contains the prototype for the Volvo IDEA project. It includes a
 * **Submit New Initiatives:** A step-by-step tile-based form with real-time HTML5 validation.
 * **Track Status:** Users can track the progress of their initiative using an auto-generated Tracking ID (UUID).
 * **Role-Based Access Control (RBAC):**
-  * **Verifier (Admin):** A protected dashboard to view all submitted leads, preview full details, update statuses, assign leaders, and manage user accounts.
-  * **Project Leader:** Restricted access allowing leaders to view and manage only the specific leads assigned to them.
-* **Automated Email Notifications:** The system automatically sends emails upon lead submission, status updates, and when a new Project Leader is assigned (generating and sending temporary login credentials).
+  * **Verifier (Admin):** A protected dashboard to view all submitted leads, preview full details, update statuses, assign coordinators, and manage user accounts.
+  * **Leads Coordinator:** Restricted access allowing coordinators to view and manage only the specific leads assigned to them.
+* **Automated Email Notifications:** The system automatically sends emails upon lead submission, status updates, and when a new Leads Coordinator is assigned (generating and sending temporary login credentials).
 * **Secure Authentication:** Passwords are encrypted in the database. The system supports secure login sessions and password updates.
 * **Persistent Storage:** Fully relational PostgreSQL database schema for reliable data retention and future PowerBI integration.
 <br>
